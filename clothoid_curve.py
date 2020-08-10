@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.special import fresnel
+import pandas as pd
 
 def rotate(x, y, a):
     s, c = np.sin(a), np.cos(a)
@@ -65,6 +66,13 @@ def clothoid_curve(ts, v, max_yr, transition_duration):
     
     return out
 
+def save_midline(x, y, yr, bearing, dt):
+
+    yaw_degs = np.degrees(np.unwrap(bearing))
+    yawrate = np.diff(yaw_degs, prepend = 0) / dt #in degs per second
+    midline = pd.DataFrame({'x': x, 'y':y, 'yaw': np.degrees(np.unwrap(bearing)), 'yawrate':yawrate})
+    midline.to_csv(f"{np.degrees(yr):.1f}_midline.csv")
+
 def test():
     import matplotlib.pyplot as plt
     
@@ -73,10 +81,14 @@ def test():
     cornering = 4
     total = 2*transition + cornering
     t = np.linspace(0, total, 1000)
-    yawrates = np.radians(20)
+    yawrates = np.radians([6,13,20])
+    dt = total/len(t) #frame rate
     
     for yawrate in yawrates:
         x, y, bearing = clothoid_curve(t, 8, yawrate, transition)
+
+        save_midline(x,y,yawrate,bearing,dt)
+
         plt.figure("coords")
         label = f"Cornering yaw rate {np.degrees(yawrate):.1f}"
         plt.plot(x, y, label=label)
@@ -92,6 +104,9 @@ def test():
     plt.figure("orientations")
     plt.legend()
     plt.show()
+
+    
+        
 
 if __name__ == '__main__':
     test()

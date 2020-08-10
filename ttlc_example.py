@@ -1,7 +1,3 @@
-import sys
-rootpath = 'C:\\Users\\pscmgo\\OneDrive for Business\\PhD\\Project\\Experiment_Code\\silent_failures\\ttlc\\'
-sys.path.append(rootpath)
-
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
@@ -350,7 +346,7 @@ if __name__ == '__main__':
     simResults = np.empty([totalrows,3]) 
     
     row_i = 0 
-    playbackdata = pd.read_csv('C:\\Users\\pscmgo\\OneDrive for Business\\PhD\\Project\\Experiment_Code\\silent_failures\\ttlc\\6_midline.csv') 	
+    playbackdata = pd.read_csv('6_midline.csv') 	
     yawrate_readout = playbackdata.get("YawRate_seconds")
     for yr_i,yr in enumerate(yawrateoffsets):  
         for onset_i, onset in enumerate(OnsetTimePool):
@@ -361,7 +357,7 @@ if __name__ == '__main__':
             print ("Yr: ", yr, "Onset: ", onset, "Time til Crossing: ", t)
             row_i += 1
 
-    matplotlib.style.use('classic')
+    #matplotlib.style.use('classic')
     plt.plot(playbackdata['x'].values, playbackdata['z'].values, 'black')
     plt.plot(Course_midline[:,0], Course_midline[:,1], color = "blue")
     plt.plot(Course_InsideLine[:,0], Course_InsideLine[:,1], color = "red")
