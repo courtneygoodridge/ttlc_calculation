@@ -6,6 +6,7 @@ import pandas as pd
 from scipy.special import fresnel
 
 import simTrackMaker
+import clothoid_curve as cc
 
 class vehicle:
     
@@ -21,10 +22,12 @@ class vehicle:
         self.speed = speed 
         self.dt = dt    
         self.time = 0
-        self.midline = Course[1]
-        self.trackorigin = Course[2]        
-        self.rads = self.trackorigin[0]
+        self.midline = np.array(Course[1]).T
+        #self.trackorigin = Course[2]        
+        #self.rads = self.trackorigin[0]
         self.afterstraight = False
+
+        self.midline_idx = 0
 
         self.yawrate = 0
         
@@ -36,7 +39,8 @@ class vehicle:
 
         self.Course = Course      
         
-        self.currenterror = self.calculatebias(self.rads)      
+        #self.currenterror = self.calculatebias(self.rads) 
+        self.currenterror = 0     
 
         #sim parameters        
         self.yawrateoffset, self.onsettime, self.smooth, self.run_time = sim_params
@@ -44,11 +48,52 @@ class vehicle:
         self.autofile_i = np.nan
 
                 # self.save_history()     
-        
+
+    def pythag(self,pos1, pos2):
+
+        dist = np.sqrt(
+                ((pos1[0]-pos2[0])**2)
+                +((pos1[1]-pos2[1])**2)
+                ) 
+        return dist
+
+    def calculate_bias_clothoid(self):
+
+        """keeps track of midline index for bias. Does not sign bias"""
+        picked = False
+
+        midindex = self.midline_idx       
+        print(midindex)
+
+        current_dist = self.pythag(self.pos, self.midline[midindex,:])
+
+        while not picked:
+            new_dist = self.pythag(self.pos, self.midline[midindex+1,:])
+
+            print("nd: ", new_dist)
+            print("current_dist: ", current_dist)
+            print("midx", midindex)
+
+            if (new_dist > current_dist) or (midindex+1 == len(self.midline[:,0])-1):
+                self.midline_idx = midindex
+                bias = current_dist
+                picked = True
+            else:
+                
+                current_dist = new_dist
+                midindex += 1                
+
+        return bias
+
 
     def calculatebias(self, rads):
+
+        """function doesn't work on clothoids"""
         #for continous error do below only on bends
         if self.afterstraight:
+
+
+
             #bends need to take into account both x and y
             pos_from_trackorigin = np.sqrt(
                 ((self.pos[0]-self.trackorigin[0])**2)
@@ -94,10 +139,11 @@ class vehicle:
         
         self.pos = self.pos + np.array([x_change, y_change]) 
 
-        self.currenterror = self.calculatebias(self.rads)
+        #self.currenterror = self.calculatebias(self.rads)
+        self.currenterror = self.calculate_bias_clothoid()
 
-        #switch to different mode of calculating bias.
-        if (self.pos[1] >= self.trackorigin[1]) and (self.afterstraight == False): self.afterstraight = True
+        ##switch to different mode of calculating bias.
+        #if (self.pos[1] >= self.trackorigin[1]) and (self.afterstraight == False): self.afterstraight = True
         
         self.save_history()
     
@@ -108,21 +154,22 @@ class vehicle:
         self.yawrate_history.append(self.yawrate)
         self.error_history.append(self.currenterror)
         #self.closestpt_history.append(self.closestpt)
+        #self.update_midindex()
 
     
 
-def runSimulation(Course, yawrate_readout, myrads, yawrateoffset= 0, onsettime = 0, smooth = True, run_time = 60):
+def runSimulation(Course, yawrate_readout, yawrateoffset= 0, onsettime = 0, smooth = True, run_time = 60, dt = 1/60, speed = 8):
 
     """run simulation"""
 
     #Sim params
-    fps = 60.0
-    speed = 8.0
+    #fps = 60.0
+    #speed = 8.0
  
     yawrateoffset_rads = np.deg2rad(yawrateoffset)
    # print ("speed; ", speed)
 
-    dt = 1.0 / fps
+    #dt = 1.0 / fps
     #run_time = 50 #seconds
     time = 0
 
@@ -184,92 +231,8 @@ def plotCar(plt, Car):
         #plt.xlim(-1, 30)						
     else:
         plt.plot(positions[:,0], positions[:,1], 'go', markersize=.2)			            
-    
-if __name__ == '__main__':
-    
-    myrads = 76.39 # 6 deg/s max yaw rate converted into a radius
-    
-    def rotate(x, y, a):
-        s, c = np.sin(a), np.cos(a)
-        return (
-            c*x - s*y,
-            s*x + c*y
-            )
 
-    def straight(startpos = [0, 0], bearing = 0, time = 2, speed = 8):
-        endpos = [(startpos[0] + ((time*speed) * (np.sin(bearing)))),(startpos[1]+((time*speed)*(np.cos(bearing))))]
-    
-        pts = 63 * 2
-    
-        bearing = bearing
-    
-        x = np.linspace(startpos[0], endpos[0], pts)
-        y = np.linspace(startpos[1], endpos[1], pts) 
-
-    
-        return np.array((x, y, bearing))
-
-    def clothoid_segment(t, s, v, x0=0, y0=0, bearing0=0):
-        x, y = np.sqrt(np.pi)*v*np.array(fresnel(np.sqrt(s)*t/np.sqrt(np.pi)))/np.sqrt(s)
-        bearing = s*t**2/2 + bearing0
-
-        x, y = rotate(x, y, bearing0)
-
-        x += x0
-        y += y0
-
-        return np.array((x, y, bearing))
-
-    def constant_curvature_segment(t, v, yr, x0=0, y0=0, bearing0=0):
-        bearing = bearing0 + t*yr
-    
-        x = (v*np.cos(bearing0) - v*np.cos(bearing) + x0*yr)/yr
-        y = (-v*np.sin(bearing0) + v*np.sin(bearing) + y0*yr)/yr
-
-        return np.array((x, y, bearing))
-
-    def clothoid_curve(ts, v, max_yr, transition_duration, startpos = [0, 0]):
-        duration = ts[-1]
-        cornering_duration = duration - 2*transition_duration
-    
-        assert(transition_duration > 0)
-        assert(cornering_duration > 0)
-    
-        s = max_yr/transition_duration
-
-        t = ts.copy()
-        e = t.searchsorted(transition_duration)
-        entry = clothoid_segment(t[:e+1], s, v, x0 = startpos[0], y0 = startpos[1])
-
-        t0, t = t[e], t[e:]
-        t -= t0
-        e = t.searchsorted(cornering_duration)
-        cornering = constant_curvature_segment(
-                t[:e+1],
-                v, max_yr,
-                *entry[:,-1])
-
-        t0, t = t[e], t[e:]
-        t -= t0
-        outro = clothoid_segment(t[::-1], s, v)
-        outro[1] *= -1
-        outro[1] -= outro[1,0]
-        outro[0] -= outro[0,0]
-        outro[:2] = rotate(outro[0], outro[1], -outro[-1,0])
-    
-        outro[2] *= -1
-        outro[2] -= outro[-1,0]
-        outro[:2] = rotate(outro[0], outro[1], -cornering[-1,-1])
-    
-        outro[2] += cornering[-1,-1]
-    
-        outro[:2] += cornering[:2, -1].reshape(2, -1)
-    
-        out = np.concatenate((entry[:,:-1], cornering[:,:-1], outro), axis=1)
-    
-        return out
-    
-    def add_edge(x, y, rw, sp = [0, 0]):
+def add_edge(x, y, rw, sp = [0, 0]):
         g = np.gradient([x,y], axis = 1)
         angles = np.arctan2(g[1], g[0])
         angles = angles + np.pi/2.0 #perpendicular normal. rotate counterclockwise
@@ -278,6 +241,22 @@ if __name__ == '__main__':
         xl, yl = ((x + unit_normals[0]) + sp[0]), ((y  + unit_normals[1]) + sp[1])
         return([xl, yl])
 
+def straight(startpos = [0, 0], bearing = 0, time = 2, speed = 8, dt = 1/60):
+    endpos = [(startpos[0] + ((time*speed) * (np.sin(bearing)))),(startpos[1]+((time*speed)*(np.cos(bearing))))]
+
+    pts = np.round(time / dt)
+
+    bearing = bearing
+
+    x = np.linspace(startpos[0], endpos[0], pts)
+    y = np.linspace(startpos[1], endpos[1], pts) 
+    yaw = np.repeat(bearing, pts)
+    
+    return np.array((x, y, yaw))
+    
+if __name__ == '__main__':
+    
+    
     L = 16 #2 seconds
     myStraight  = simTrackMaker.lineStraight(startpos = [0,0], length= 16)
 
@@ -287,91 +266,81 @@ if __name__ == '__main__':
     cornering = 4
     total = 2*transition + cornering
     ts = np.linspace(0, total, 1000)
-    yaw = np.radians(6)
+    yawrates = np.radians([6, 13, 20])
+    dt = total/len(ts) #frame rate
 
-    #### track components
-    straight1 = straight()
-    clothoid = clothoid_curve(ts, speed, yaw, transition, startpos = [0, 16])
-    straight2 = straight(startpos = [(clothoid[0, -1]), clothoid[1, -1]], bearing = clothoid[2, -1])
 
-    # selecting x and y coords for track
-    x = np.hstack((straight1[0], clothoid[0], straight2[0]))
-    y = np.hstack((straight1[1], clothoid[1], straight2[1]))
+    for yawrate in yawrates:
 
-    ##### creating bearing/yr variable
-    # clothoid_bearing = clothoid[2]
-    # straight_bearing = np.linspace(0, 0, 500)
-    # bearing = np.hstack((straight_bearing, clothoid_bearing))
-    # t = np.linspace(0, 14, 1500)
-    # yr = np.degrees(bearing) / t 
 
-    # midline
-    midline	= add_edge(x, y, rw = 0)
-    track_midline = np.transpose(np.vstack((midline[0], midline[1])))
+        #create track
 
-    # outside
-    outside = add_edge(x,y, rw = -3)
-    track_outside_line = np.transpose(np.vstack((outside[0], outside[1])))
+        x, y, bearing = cc.clothoid_curve(ts, speed, yawrate, transition)
+        
+        #add straights
+        y += 16
+        straight1 = straight(dt = dt)
+        straight2 = straight(startpos = [x[-1], y[-1]], bearing = bearing[-1], dt = dt)
 
-    # inside
-    inside = add_edge(x,y, rw = 3)
-    track_inside_line = np.transpose(np.vstack((inside[0], inside[1])))
+        # selecting x and y coords for track
+        x = np.hstack((straight1[0], x, straight2[0]))
+        y = np.hstack((straight1[1], y, straight2[1]))
+        yaw = np.hstack((straight1[2], bearing, straight2[2]))
+        yaw_degs = np.degrees(np.unwrap(yaw))
+        yawrate_degs = np.diff(yaw_degs, prepend = 0) / dt #in degs per second
+        
+        midline = [x,y]
 
-    # max radii of bend plus coordinate in y direction
-    translate = myrads * 1
-    CurveOrigin = np.add(myStraight.RoadEnd, [translate,0])
+        # outside
+        outside = add_edge(x,y, rw = -3)
+        track_outside_line = np.transpose(np.vstack((outside[0], outside[1])))
 
-    #midline and edges
-    Course_RoadStart = [0,0]
-    Course_midline = track_midline
-    Course_OutsideLine = track_outside_line
-    Course_InsideLine = track_inside_line
-    Course_CurveOrigin = CurveOrigin
+        # inside
+        inside = add_edge(x,y, rw = 3)
+        track_inside_line = np.transpose(np.vstack((inside[0], inside[1])))
+        
+        #Store course as list
+        Course = [[0,0], midline]
     
-    #Store course as list
-    Course = [Course_RoadStart, Course_midline, Course_CurveOrigin, Course_OutsideLine, Course_InsideLine]
-    
-    #onset pool times
-    OnsetTimePool = np.array([1.5, 5, 8, 11]) # 1.5, 5, 8, 11
+        #onset pool times
+        OnsetTimePool = np.array([1.5, 5, 8, 11]) # 1.5, 5, 8, 11        
 
-    bend_yr = np.rad2deg(8.0 / myrads) 
+        yawrateoffsets = [1,2,3,4]
+        
+        
+        #columns: yr_offset, onsettime, time_til_crossing
+        totalrows = len(yawrateoffsets) \
+                * len(OnsetTimePool)
+        
+        simResults = np.empty([totalrows,3]) 
+        
+        row_i = 0 
+        #playbackdata = pd.read_csv(f"{np.degrees(yawrate):.1f}_midline.csv") 	
+        #yawrate_readout = playbackdata.get("yawrate")
+        for yro_i,yro in enumerate(yawrateoffsets):  
+            for onset_i, onset in enumerate(OnsetTimePool):
+                Car, t = runSimulation(Course, yawrate_degs, yro, onset, dt = dt)
+                plotCar(plt, Car)
+                simResults[row_i] =  [yro, onset, t]
+                print(t)
+                print ("Yr: ", yro, "Onset: ", onset, "Time til Crossing: ", t)
+                row_i += 1
 
-    yawrateoffsets = [0]
-    
-    print(bend_yr)
-    #columns: yr_offset, onsettime, time_til_crossing
-    totalrows = len(yawrateoffsets) \
-            * len(OnsetTimePool)
-    
-    simResults = np.empty([totalrows,3]) 
-    
-    row_i = 0 
-    playbackdata = pd.read_csv('6_midline.csv') 	
-    yawrate_readout = playbackdata.get("YawRate_seconds")
-    for yr_i,yr in enumerate(yawrateoffsets):  
-        for onset_i, onset in enumerate(OnsetTimePool):
-            Car, t = runSimulation(Course, yawrate_readout, myrads, yr, onset)
-            plotCar(plt, Car)
-            simResults[row_i] =  [yr, onset, t]
-            print(t)
-            print ("Yr: ", yr, "Onset: ", onset, "Time til Crossing: ", t)
-            row_i += 1
+        #matplotlib.style.use('classic')
+        plt.plot(x, y, 'black')        
+        plt.plot(track_inside_line[:,0], track_inside_line[:,1], color = (.8,.8,.8))
+        plt.plot(track_outside_line[:,0], track_outside_line[:,1], color = (.8,.8,.8))
+        plotCar(plt, Car)
+        #plt.title("Bend max yaw rate: " + str(round(8 / np.deg2rad(myrads), 2)) + "°/s")
+        plt.title(f"Bend max yaw rate: {np.degrees(yawrate):.1f} degs/s")
+        #plt.ylim(0, 50)
+        #plt.xlim(-5, 40)
+        plt.savefig(f'{np.degrees(yawrate):.1f}_yaw_rate.png', dpi = 300)
 
-    #matplotlib.style.use('classic')
-    plt.plot(playbackdata['x'].values, playbackdata['z'].values, 'black')
-    plt.plot(Course_midline[:,0], Course_midline[:,1], color = "blue")
-    plt.plot(Course_InsideLine[:,0], Course_InsideLine[:,1], color = "red")
-    plt.plot(Course_OutsideLine[:,0], Course_OutsideLine[:,1], color = "red")
-    plotCar(plt, Car)
-    plt.title("Bend max yaw rate: " + str(round(8 / np.deg2rad(myrads), 2)) + "°/s")
-    #plt.ylim(0, 50)
-    #plt.xlim(-5, 40)
-    plt.savefig('20_yaw_rate' + '.png', dpi = 300)
-
-    plt.show()
-    
-    np.savetxt("simulated_roadcrossing.csv", simResults, delimiter=",")
-    print("saved")
+        plt.show()
+        
+        np.savetxt("simulated_roadcrossing.csv", simResults, delimiter=",")
+        print("saved")
 
 
 
