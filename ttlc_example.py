@@ -1,3 +1,8 @@
+import sys
+
+rootpath = 'C:\\Users\\pscmgo\\OneDrive for Business\\PhD\\Project\\Experiment_Code\\ttlc_calculation'
+sys.path.append(rootpath)
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pdb
@@ -42,8 +47,8 @@ class vehicle:
         #self.currenterror = self.calculatebias(self.rads) 
         self.currenterror = 0     
 
-        #sim parameters        
-        self.yawrateoffset, self.onsettime, self.smooth, self.run_time = sim_params
+        #sim parameters
+        self.onsettime, self.smooth, self.run_time = sim_params
         self.simulated_ttlc = np.nan
         self.autofile_i = np.nan
 
@@ -158,7 +163,7 @@ class vehicle:
 
     
 
-def runSimulation(Course, yawrate_readout, yawrateoffset= 0, onsettime = 0, smooth = True, run_time = 60, dt = 1/60, speed = 8):
+def runSimulation(Course, yawrate_readout, onsettime = 0, smooth = True, run_time = 60, dt = 1/60, speed = 8):
 
     """run simulation"""
 
@@ -166,14 +171,14 @@ def runSimulation(Course, yawrate_readout, yawrateoffset= 0, onsettime = 0, smoo
     #fps = 60.0
     #speed = 8.0
  
-    yawrateoffset_rads = np.deg2rad(yawrateoffset)
+   # yawrateoffset_rads = np.deg2rad(yawrateoffset)
    # print ("speed; ", speed)
 
     #dt = 1.0 / fps
     #run_time = 50 #seconds
     time = 0
 
-    sim_params = [yawrateoffset, onsettime, smooth, run_time]
+    sim_params = [onsettime, smooth, run_time]
 
     Car = vehicle(0.0, speed, dt, yawrate_readout, Course, sim_params)
 
@@ -196,10 +201,10 @@ def runSimulation(Course, yawrate_readout, yawrateoffset= 0, onsettime = 0, smoo
 
         if time > onsettime: # if time is after onsetime
             time_after_onset = time - onsettime
-            if smooth: 
-                transition_duration = .5 # half second for automation to fail
-                smooth_yaw = smooth_step(time_after_onset/transition_duration) * yawrateoffset_rads                                                    
-                newyawrate += smooth_yaw # is smooth yaw rate consistent yaw rate upon the onset failure?
+            if smooth:
+                # transition_duration = .5 # half second for automation to fail
+                # smooth_yaw = smooth_step(time_after_onset/transition_duration) * yawrateoffset_rads
+                newyawrate = 0 # newyawrate += smooth_yaw is smooth yaw rate consistent yaw rate upon the onset failure?
         else:
             newyawrate = np.deg2rad(Car.yawrate_readout[i]) # otherwise yaw rate is the same as the read out
 
@@ -257,8 +262,8 @@ def straight(startpos = [0, 0], bearing = 0, time = 2, speed = 8, dt = 1/60):
 if __name__ == '__main__':
     
     
-    L = 16 #2 seconds
-    myStraight  = simTrackMaker.lineStraight(startpos = [0,0], length= 16)
+    #L = 16 #2 seconds
+    #myStraight  = simTrackMaker.lineStraight(startpos = [0,0], length= 16)
 
     # Clothoid parameters
     speed = 8
@@ -266,7 +271,7 @@ if __name__ == '__main__':
     cornering = 4
     total = 2*transition + cornering
     ts = np.linspace(0, total, 1000)
-    yawrates = np.radians([6, 13, 20])
+    yawrates = np.radians([20]) # 6, 13, 20
     dt = total/len(ts) #frame rate
 
 
@@ -278,7 +283,8 @@ if __name__ == '__main__':
         x, y, bearing = cc.clothoid_curve(ts, speed, yawrate, transition)
         
         #add straights
-        y += 16
+
+        y += 16 # 16
         straight1 = straight(dt = dt)
         straight2 = straight(startpos = [x[-1], y[-1]], bearing = bearing[-1], dt = dt)
 
@@ -305,41 +311,48 @@ if __name__ == '__main__':
         #onset pool times
         OnsetTimePool = np.array([1.5, 5, 8, 11]) # 1.5, 5, 8, 11        
 
-        yawrateoffsets = [1,2,3,4]
-        
-        
         #columns: yr_offset, onsettime, time_til_crossing
-        totalrows = len(yawrateoffsets) \
-                * len(OnsetTimePool)
+        totalrows = len(OnsetTimePool)
         
         simResults = np.empty([totalrows,3]) 
         
         row_i = 0 
         #playbackdata = pd.read_csv(f"{np.degrees(yawrate):.1f}_midline.csv") 	
         #yawrate_readout = playbackdata.get("yawrate")
-        for yro_i,yro in enumerate(yawrateoffsets):  
-            for onset_i, onset in enumerate(OnsetTimePool):
-                Car, t = runSimulation(Course, yawrate_degs, yro, onset, dt = dt)
-                plotCar(plt, Car)
-                simResults[row_i] =  [yro, onset, t]
-                print(t)
-                print ("Yr: ", yro, "Onset: ", onset, "Time til Crossing: ", t)
-                row_i += 1
+        for onset_i, onset in enumerate(OnsetTimePool):
+            Car, t = runSimulation(Course, yawrate_degs, onset, dt = dt)
+            plotCar(plt, Car)
+            simResults[row_i] =  [np.degrees(yawrate), onset, t]
+            #print(t)
+            print ("Yr: ", np.degrees(yawrate), "Onset: ", onset, "Time til Crossing: ", t)
+            row_i += 1
 
-        #matplotlib.style.use('classic')
+        matplotlib.style.use('classic')
         plt.plot(x, y, 'black')        
         plt.plot(track_inside_line[:,0], track_inside_line[:,1], color = (.8,.8,.8))
         plt.plot(track_outside_line[:,0], track_outside_line[:,1], color = (.8,.8,.8))
         plotCar(plt, Car)
-        #plt.title("Bend max yaw rate: " + str(round(8 / np.deg2rad(myrads), 2)) + "°/s")
         plt.title(f"Bend max yaw rate: {np.degrees(yawrate):.1f} degs/s")
         #plt.ylim(0, 50)
         #plt.xlim(-5, 40)
         plt.savefig(f'{np.degrees(yawrate):.1f}_yaw_rate.png', dpi = 300)
 
         plt.show()
-        
-        np.savetxt("simulated_roadcrossing.csv", simResults, delimiter=",")
+
+        # saving simulated trajectories
+        positions = np.array(Car.pos_history)
+        positions = pd.DataFrame(positions)
+        positions.columns = ['x', 'y']
+        np.savetxt(f"{np.degrees(yawrate):.1f}_sim_coordinates.csv", positions, delimiter = ",")
+
+        # saving course coordinates
+        course_df = np.transpose(np.vstack((track_inside_line[:, 0], track_inside_line[:, 1], track_outside_line[:, 0], track_outside_line[:, 1], x, y, yaw_degs, yawrate_degs)))
+        course_df = pd.DataFrame(course_df)
+        course_df.columns = ['x_inside', 'y_inside', 'x_outside', 'y_outside', 'x', 'y', 'yaw', 'YawRate_seconds']
+        np.savetxt(f"{np.degrees(yawrate):.1f}_course_coordinates.csv", course_df, delimiter = ",")
+
+        # saving ttlc
+        np.savetxt(f"{np.degrees(yawrate):.1f}_simulated_roadcrossing.csv", simResults, delimiter = ",")
         print("saved")
 
 
