@@ -271,7 +271,7 @@ if __name__ == '__main__':
     cornering = 4
     total = 2*transition + cornering
     ts = np.linspace(0, total, 1000)
-    yawrates = np.radians([20]) # 6, 13, 20
+    yawrates = np.radians([6]) # 6, 13, 20
     dt = total/len(ts) #frame rate
 
 
@@ -315,6 +315,8 @@ if __name__ == '__main__':
         totalrows = len(OnsetTimePool)
         
         simResults = np.empty([totalrows,3]) 
+
+        positions_example = []
         
         row_i = 0 
         #playbackdata = pd.read_csv(f"{np.degrees(yawrate):.1f}_midline.csv") 	
@@ -323,6 +325,7 @@ if __name__ == '__main__':
             Car, t = runSimulation(Course, yawrate_degs, onset, dt = dt)
             plotCar(plt, Car)
             simResults[row_i] =  [np.degrees(yawrate), onset, t]
+            positions_example.append(np.array(Car.pos_history))
             #print(t)
             print ("Yr: ", np.degrees(yawrate), "Onset: ", onset, "Time til Crossing: ", t)
             row_i += 1
@@ -336,13 +339,17 @@ if __name__ == '__main__':
         #plt.ylim(0, 50)
         #plt.xlim(-5, 40)
         plt.savefig(f'{np.degrees(yawrate):.1f}_yaw_rate.png', dpi = 300)
-
         plt.show()
 
-        # saving simulated trajectories
-        positions = np.array(Car.pos_history)
+        # saving simulated trajectories 
+        a = np.insert(positions_example[0], 1, values = 1.5, axis = 1)
+        b = np.insert(positions_example[1], 1, values = 5, axis = 1)
+        c = np.insert(positions_example[2], 1, values = 8, axis = 1)
+        d = np.insert(positions_example[3], 1, values = 11, axis = 1)
+        
+        positions = np.vstack((a, b, c, d))
         positions = pd.DataFrame(positions)
-        positions.columns = ['x', 'y']
+        positions.columns = ['x', 'onsettime', 'y']
         np.savetxt(f"{np.degrees(yawrate):.1f}_sim_coordinates.csv", positions, delimiter = ",")
 
         # saving course coordinates
@@ -353,7 +360,12 @@ if __name__ == '__main__':
 
         # saving ttlc
         np.savetxt(f"{np.degrees(yawrate):.1f}_simulated_roadcrossing.csv", simResults, delimiter = ",")
-        print("saved")
+        print("saved")    
+
+
+
+
+
 
 
 
