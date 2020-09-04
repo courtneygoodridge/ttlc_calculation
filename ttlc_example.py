@@ -271,7 +271,7 @@ if __name__ == '__main__':
     cornering = 4
     total = 2*transition + cornering
     ts = np.linspace(0, total, 1000)
-    yawrates = np.radians([6]) # 6, 13, 20
+    yawrates = np.radians([13]) # 6, 13, 20
     dt = total/len(ts) #frame rate
 
 
