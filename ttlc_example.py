@@ -309,7 +309,7 @@ if __name__ == '__main__':
         Course = [[0,0], midline]
     
         #onset pool times
-        OnsetTimePool = np.array([1.5, 5, 8, 11]) # 1.5, 5, 8, 11        
+        OnsetTimePool = np.array([0]) # 1.5, 5, 8, 11        
 
         #columns: yr_offset, onsettime, time_til_crossing
         totalrows = len(OnsetTimePool)
