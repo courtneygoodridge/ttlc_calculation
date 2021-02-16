@@ -12,6 +12,7 @@ from scipy.special import fresnel
 
 import simTrackMaker
 import clothoid_curve as cc
+from __future__ import division
 
 class vehicle:
     
